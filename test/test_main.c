@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <feistalBox/feistalBox.h>
+#include <Aisinossl/sm4/sm4.h>
+#include <Aisinossl/sm4_whitebox/sm4_whitebox.h>
+#include <Aisinossl/sm4_whitebox/sm4_whitebox_generator.h>
 #include <wbc2/wbc2.h>
 
 void dump(const uint8_t * li, int len) {
@@ -12,6 +15,10 @@ void dump(const uint8_t * li, int len) {
             printf(" ");
         }
     }
+}
+
+size_t cal_box_size(FeistalBox fb){
+    return sizeof(FeistalBox) - 2 * sizeof(unsigned char*) + fb.tableSize + fb.pSize;
 }
 
 #include "count_cycles.h"
@@ -150,9 +157,9 @@ int wbc2_example()
 
 int import_test()
 {
-    const uint8_t key[16] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
-    const uint8_t ip[16] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
-    int rounds = 100;
+    const uint8_t key[16] = "0000000000000000";
+    const uint8_t ip[16] = {0};
+    int rounds = 10;
     printf("With Affine: %d rounds\n", rounds);
     FeistalBox fb_enc, fb_dec;
     FeistalBoxConfig cfg;
@@ -161,7 +168,7 @@ int import_test()
     size_t size2 = 0;
 
     set_time_start();
-    ret = initFeistalBoxConfig(FeistalBox_SM4_128_128, key, 1, 15, rounds, &cfg);
+    ret = initFeistalBoxConfigNoAffine(FeistalBox_SM4_128_128, key, 1, 15, rounds, &cfg);
     set_time_ends();
     printf("initFeistalBoxConfig Spent: %f s, %lld cycles Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), ret);
 
@@ -481,66 +488,220 @@ int cfb_test(FeistalBox* fb_enc, FeistalBox* fb_dec, const unsigned char* ip, si
     return 0;
 }
 
-int test_suite(){
+int feitsalBox_test(char filename[], FeistalBox* fb_enc, FeistalBox* fb_dec,int rounds){
     FILE* f;
     unsigned char* buf;
     size_t file_size;
-    f = fopen("/Users/Li/Code/git/github.com/WhiteboxCipher2/build/f.txt","rb");
+    f = fopen(filename,"rb");
     file_size = getFileSize(f);
+    double sizeInMB = (double)file_size / 1024.0 / 1024.0;
     buf = malloc(file_size);
     fread(buf, sizeof(unsigned char), file_size, f);
+    printf("\n\nFeistalBox Test:\n");
+    printf("Filename:%s , file size:%.2lfMB , rounds:%d\n", filename,sizeInMB,rounds);
     
-    int rounds = 100;
     int ret;
     const uint8_t key[16] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
 //    unsigned char iv2[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //    unsigned char iv[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    
+    
+     printf("\n\nwcbc_test:\n");
+     wcbc_test(fb_enc, fb_dec, buf, file_size);
+     
+     printf("\n\nwcfb_test:\n");
+     wcfb_test(fb_enc, fb_dec, buf, file_size);
+    
+    
+    printf("\n\ncbc_test:\n");
+    cbc_test(fb_enc, fb_dec, buf, file_size);
+    
+    printf("\n\ncfb_test:\n");
+    cfb_test(fb_enc, fb_dec, buf, file_size);
+    
+    free(buf);
+    return 0;
+}
+
+int  genBox_test(FeistalBox *fb_enc ,FeistalBox *fb_dec, int rounds){
+    int ret;
+    const uint8_t key[16] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
     FeistalBoxConfig cfg;
-    FeistalBox fb_enc, fb_dec;
     //initFeistalBox(FeistalBox_SM4_128_128, &fb);
+    printf("\nRounds:%d\n",rounds);
     set_time_start();
     ret = initFeistalBoxConfig(FeistalBox_SM4_128_128, key, 1, 15, rounds, &cfg);
     set_time_ends();
     printf("initFeistalBoxConfig Spent: %f s, %lld cycles Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), ret);
     
     set_time_start();
-    ret = generateFeistalBox(&cfg, eFeistalBoxModeEnc, &fb_enc);
+    ret = generateFeistalBox(&cfg, eFeistalBoxModeEnc, fb_enc);
     set_time_ends();
-    printf("generate Enc FeistalBox Spent: %f s, %lld cycles Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), ret);
+    printf("generate Enc FeistalBox Spent: %f s, %lld cycles ,Box Size:%lld , Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), cal_box_size(*fb_enc), ret);
     
     set_time_start();
-    ret = generateFeistalBox(&cfg, eFeistalBoxModeDec, &fb_dec);
+    ret = generateFeistalBox(&cfg, eFeistalBoxModeDec, fb_dec);
     set_time_ends();
-    printf("generate Dec FeistalBox Spent: %f s, %lld cycles Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), ret);
-    
-    
-     printf("\n\nwcbc_test:\n");
-     wcbc_test(&fb_enc, &fb_dec, buf, file_size);
-     
-     printf("\n\nwcfb_test:\n");
-     wcfb_test(&fb_enc, &fb_dec, buf, file_size);
-    
-    
-    printf("\n\ncbc_test:\n");
-    cbc_test(&fb_enc, &fb_dec, buf, file_size);
-    
-    //printf("\n\ncfb_test:\n");
-    //cfb_test(&fb_enc, &fb_dec, buf, file_size);
-    
-    //free(buf);
+    printf("generate Dec FeistalBox Spent: %f s, %lld cycles ,Box Siez:%lld, Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), cal_box_size(*fb_dec), ret);
+
     return 0;
-    
 }
+
+void test_suite(){
+    int i;
+    //1MB
+    char filename_0[] = "test0";
+    //10MB
+    char filename_1[] = "test1";
+    //100MB
+    char filename_2[] = "test2";
+    //1024MB
+    char filename_3[] = "test3";
+
+    FeistalBoxConfig cfg[5];
+    FeistalBox enc_box[5];
+    FeistalBox dec_box[5];
+    for(i = 0;i < 5;i++){
+        genBox_test(&enc_box[i], &dec_box[i], (i + 1) * 100);
+    }
+    for(i = 0;i < 5;i++){
+        feitsalBox_test(filename_0, &enc_box[i], &dec_box[i], (i + 1)* 100);
+    }
+    for(i = 0;i < 5;i++){
+        feitsalBox_test(filename_1, &enc_box[i], &dec_box[i], (i + 1)* 100);
+    }
+    for(i = 0;i < 5;i++){
+        feitsalBox_test(filename_2, &enc_box[i], &dec_box[i], (i + 1)* 100);
+    }
+    for(i = 0;i < 5;i++){
+        feitsalBox_test(filename_3, &enc_box[i], &dec_box[i], (i + 1)* 100);
+    }
+}
+
+/*
+int sm4_test(char filename[]){
+    FILE* f;
+    unsigned char* buf;
+    unsigned char* op;
+    unsigned char* output_buf;
+    size_t file_size;
+    sm4_key_t enc_key,dec_key;
+    int num;
+    f = fopen(filename,"rb");
+    file_size = getFileSize(f);
+    double sizeInMB = (double)file_size / 1024.0 / 1024.0;
+    buf = malloc(file_size);
+    output_buf = malloc(file_size);
+    op = malloc(file_size);
+    fread(buf, sizeof(unsigned char), file_size, f);
+    printf("\n\nSM4 Test:\n");
+    printf("Filename:%s , file size:%.2lfMB\n",filename, sizeInMB);
+    int ret;
+    
+    const uint8_t key[16] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
+
+    unsigned char iv0[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    unsigned char iv1[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    unsigned char iv2[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    unsigned char iv3[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    //initFeistalBox(FeistalBox_SM4_128_128, &fb);
+    set_time_start();
+    sm4_set_encrypt_key(&enc_key, key);
+    sm4_set_decrypt_key(&dec_key, key);
+    set_time_ends();
+    printf("init sm4 Spent: %f s, %lld cycles \n", get_clock_elapsed(), get_cycles_elapsed());
+    
+    set_time_start();
+    sm4_cbc_encrypt(buf, output_buf,file_size, &enc_key, iv0, SM4_ENCRYPT);
+    set_time_ends();
+    printf("SM4 CBC encrypt Spent: %f s, %lld cycles \n", get_clock_elapsed(), get_cycles_elapsed());
+
+
+    set_time_start();
+    sm4_cbc_encrypt(output_buf, op,file_size, &dec_key, iv1, SM4_DECRYPT);
+    set_time_ends();
+    printf("SM4 CBC decrypt Spent: %f s, %lld cycles \n", get_clock_elapsed(), get_cycles_elapsed());
+
+    ret = memcmp(buf, op, file_size);
+    printf("DecText ?= Plaintext:\t%s\n", ret == 0 ? "OK" : "NO");
+
+    //memset(output_buf, 0 ,file_size);
+    //memset(op, 0 ,file_size);
+
+    set_time_start();
+    sm4_cfb128_encrypt(buf, output_buf,file_size, &enc_key, iv2, &num, SM4_ENCRYPT);
+    set_time_ends();
+    printf("SM4 CFB encrypt Spent: %f s, %lld cycles \n", get_clock_elapsed(), get_cycles_elapsed());
+    
+    num = 0;
+
+    set_time_start();
+    sm4_cfb128_encrypt(output_buf, op, file_size, &enc_key, iv3, &num, SM4_DECRYPT);
+    set_time_ends();
+    printf("SM4 CFB decrypt Spent: %f s, %lld cycles \n", get_clock_elapsed(), get_cycles_elapsed());
+
+    ret = memcmp(buf, op, file_size);
+    printf("DecText ?= Plaintext:\t%s\n", ret == 0 ? "OK" : "NO");
+
+    free(buf);
+    return 0;
+}
+*/
+/*
+int sm4WhiteBox_test(char filename[]){
+    FILE* f;
+    unsigned char* buf;
+    unsigned char* output_buf;
+    size_t file_size;
+    Sm4Whitebox enc_table,dec_table;
+    f = fopen(filename,"rb");
+    file_size = getFileSize(f);
+    double sizeInMB = (double)file_size / 1024.0 / 1024.0;
+    buf = malloc(file_size);
+    output_buf = malloc(file_size);
+    fread(buf, sizeof(unsigned char), file_size, f);
+    printf("SM4 Test:\n");
+    printf("Filename:%s , file size:%.2lf\n", sizeInMB);
+    
+    int ret;
+    const uint8_t key[16] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
+    unsigned char iv[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    //initFeistalBox(FeistalBox_SM4_128_128, &fb);
+    set_time_start();
+    sm4_wb_gen_tables(key, &enc_table, SM4_ENCRYPT);
+    set_time_ends();
+    printf("init sm4 whitebox encrypt box Spent: %f s, %lld cycles Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), ret);
+
+    set_time_start();
+    sm4_wb_gen_tables(key, &dec_table, SM4_DECRYPT);
+    set_time_ends();
+    printf("init sm4 whitebox encrypt box Spent: %f s, %lld cycles Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), ret);
+    
+    set_time_start();
+    sm4_wb_cbc_encrypt(buf, output_buf,file_size, &enc_table, iv);
+    set_time_ends();
+    printf("SM4 WhiteBox CBC encrypt Spent: %f s, %lld cycles Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), ret);
+
+    memset(output_buf, 0 ,file_size);
+
+    set_time_start();
+    sm4_wb_cbc_decrypt(buf, output_buf,file_size, &dec_table, iv);
+    set_time_ends();
+    printf("SM4 WhiteBox CBC decrypt Spent: %f s, %lld cycles Ret: %d\n", get_clock_elapsed(), get_cycles_elapsed(), ret);
+
+    memset(output_buf, 0 ,file_size);
+
+
+    free(buf);
+    return 0;
+}
+*/
 
 int main(int argv, char **argc)
 {
     test_suite();
-    wbc2_example();
-    printf("wcbc test:\n");
-    wcbc_example();
-    cbc_cfb_example();
-    printf("wcfb test:\n");
-    wcfb_example();
-    import_test();
-    return 0;
+    //Test for 1MB file
+    //sm4_test(filename_0);
+    //sm4WhiteBox_test(filename_0);
+
 }
