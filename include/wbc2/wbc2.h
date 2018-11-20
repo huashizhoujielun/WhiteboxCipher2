@@ -44,6 +44,7 @@ typedef struct FeistalBoxConfig {
     uint8_t key[16];
 } FeistalBoxConfig;
 
+#pragma pack(1)
 typedef struct FeistalBox {
     enum FeistalBoxAlgo algo;
     int rounds;
@@ -59,6 +60,7 @@ typedef struct FeistalBox {
     uint8_t *table;       // finally, box = 2^(8*inputBytes) * outputBytes
     uint8_t (*p)[16][256]; //permutation layer, size: rounds * 512B
 } FeistalBox;
+#pragma pack()
 
 /**
  * USAGE:
