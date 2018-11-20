@@ -23,13 +23,16 @@ size_t cal_box_size(FeistalBox fb){
 
 #include "count_cycles.h"
 
-size_t getFileSize(FILE* f){
-    size_t res;
+unsigned long getFileSize(FILE* f){
+    if(f == NULL)
+        return 0;
+    unsigned long res;
     fseek(f , 0 ,SEEK_END);
     res = ftell(f);
     rewind(f);
     return res;
 }
+
 
 int wbc2WithAffine(const uint8_t key[16], const uint8_t ip[16], int rounds)
 {
@@ -395,8 +398,9 @@ int wcbc_example(){
 int wcbc_test(FeistalBox* fb_enc, FeistalBox* fb_dec, const unsigned char* ip, size_t size){
     unsigned char iv2[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     unsigned char iv[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    size_t padding_length  = (size % 16 == 0)? size : size + 16 - (size % 16) ;
     unsigned char* op = malloc(size + 16*3);
-    unsigned char* buf = malloc(size);
+    unsigned char* buf = malloc(padding_length + 16);
     int ret;
     
     set_time_start();
@@ -418,8 +422,9 @@ int wcbc_test(FeistalBox* fb_enc, FeistalBox* fb_dec, const unsigned char* ip, s
 int cbc_test(FeistalBox* fb_enc, FeistalBox* fb_dec, const unsigned char* ip, size_t size){
     unsigned char iv2[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     unsigned char iv[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    unsigned char* op = malloc(size );
-    unsigned char* buf = malloc(size );
+    size_t padding_length  = (size % 16 == 0)? size : size + 16 - (size % 16) ;
+    unsigned char* op = malloc(padding_length );
+    unsigned char* buf = malloc(padding_length );
     int ret;
     
     set_time_start();
@@ -491,7 +496,7 @@ int cfb_test(FeistalBox* fb_enc, FeistalBox* fb_dec, const unsigned char* ip, si
 int feitsalBox_test(char filename[], FeistalBox* fb_enc, FeistalBox* fb_dec,int rounds){
     FILE* f;
     unsigned char* buf;
-    size_t file_size;
+    unsigned long file_size;
     f = fopen(filename,"rb");
     file_size = getFileSize(f);
     double sizeInMB = (double)file_size / 1024.0 / 1024.0;
@@ -550,7 +555,7 @@ int  genBox_test(FeistalBox *fb_enc ,FeistalBox *fb_dec, int rounds){
 void test_suite(){
     int i;
     //1MB
-    char filename_0[] = "test0";
+    char filename_0[] = "E:\\whiteBox\\WhiteboxCipher2\\build\\test0";
     //10MB
     char filename_1[] = "test1";
     //100MB
@@ -567,6 +572,7 @@ void test_suite(){
     for(i = 0;i < 5;i++){
         feitsalBox_test(filename_0, &enc_box[i], &dec_box[i], (i + 1)* 100);
     }
+    /*
     for(i = 0;i < 5;i++){
         feitsalBox_test(filename_1, &enc_box[i], &dec_box[i], (i + 1)* 100);
     }
@@ -576,6 +582,7 @@ void test_suite(){
     for(i = 0;i < 5;i++){
         feitsalBox_test(filename_3, &enc_box[i], &dec_box[i], (i + 1)* 100);
     }
+    */
 }
 
 /*
