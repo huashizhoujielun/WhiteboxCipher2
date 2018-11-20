@@ -46,7 +46,6 @@ size_t CRYPTO_wcbc128_encrypt(const unsigned char* in, unsigned char* out,
 
     key = malloc(type_size);
     (*set_key) (key, user_key);
-    len -= BLOCK_SIZE;
     CRYPTO_cbc128_encrypt(in, out, len, key, block_iv, block);
 
     /* get length after padding */
